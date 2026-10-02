@@ -1,415 +1,221 @@
 <?php
+/**
+ * Kansai Plascon Lucky Draw - Modern Broadcast Application
+ * Unified, responsive system for promotional live draws across Uganda.
+ */
 
-//error_reporting(1);
+require_once __DIR__ . '/config.php';
 
-$numbers = getNumbers();
-function getNumbers()
-{
-	global $numbers;
-		$con = new mysqli("127.0.0.1", "root", "", "plascon");
-		$q = "select msisdn from past_winners order by rand() limit 100";
-		$result=mysqli_query($con,$q);
-		if (!$result)
-			echo(mysqli_error($con));
+$config = new Config();
 
-		if(mysqli_num_rows($result)>0){      
-			while($row = mysqli_fetch_array($result)){
-				 $numbers .=  trim($row['msisdn']).",";
-			}
-		}
+// Determine pre-selected region and settings (supports URL parameters and wrappers)
+$selectedRegion = isset($_GET['region']) ? trim($_GET['region']) : 'All Regions';
+$selectedType = isset($_GET['type']) ? trim($_GET['type']) : 'daily';
+$targetCount = isset($_GET['count']) ? max(1, (int) $_GET['count']) : 8;
 
-		return rtrim($numbers,',');
-}
-
-function getWinners(){
-	global $numbers;
-    $phones = explode(",",$numbers);
-	$rwinners =	getRandomNumbers(1, 80, 5);
-	$winners ='';
-	for($x =0; $x < count($rwinners); $x++)
-	{
-		$winners .= "'".$phones[$rwinners[$x]]."',"; 
-	}
-	
-	return rtrim($winners,',');
-}
-function getRandomNumbers($min, $max, $count)
-{
-    if ($count > (($max - $min)+1))
-    {
-        return false;
-    }
-    $values = range($min, $max);
-    shuffle($values);
-    return array_slice($values,0, $count);
+$regions = Config::getAvailableRegions();
+if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, true)) {
+    $regions[] = $selectedRegion;
+    sort($regions);
 }
 ?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<!-- saved from url=(0038)http://demo.cnanney.com/apple-counter/ -->
-<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-  
-  <meta name="description" content="Apple-Style Counter Final Demo">
-  <title>PLASCON DRAW</title>
-  <script type="text/javascript" async="" src="./Apple-Style Counter Final_files/ga.js"></script>
-  
-  <script type="text/javascript" src="./Apple-Style Counter Final_files/jquery.min.js"></script>
-  <link rel="stylesheet" type="text/css" href="./Apple-Style Counter Final_files/demostyles.css">
-  <style type="text/css">
-    <!--
- * {
-      margin: 0;
-      padding: 0
-	  cursor: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAZdEVYdFNvZnR3YXJlAFBhaW50Lk5FVCB2My41LjbQg61aAAAADUlEQVQYV2P4//8/IwAI/QL/+TZZdwAAAABJRU5ErkJggg=='),
-    /*url(images/blank.cur),*/
-    none !important;
-    }
-	body{
-		margin-top:35px;
-		padding:1%;
-		cursor: none;
-		background: url('img/GOtv-WSF-Randomiser.jpg') center top no-repeat #dfdfe1;
-		font-family: Arial;
-	}	
-	body{
-    cursor: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAZdEVYdFNvZnR3YXJlAFBhaW50Lk5FVCB2My41LjbQg61aAAAADUlEQVQYV2P4//8/IwAI/QL/+TZZdwAAAABJRU5ErkJggg=='),
-    /*url(images/blank.cur),*/
-    none !important;
-}
-.counter{
-	padding-top:0px;
-}
+<!DOCTYPE html>
+<html lang="en">
 
-    .counter ul {
-      list-style-type: none;
-      width: 566px;
-      margin: 50px auto;
-      display: block;
-	  margin-top:20px;
-    }
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kansai Plascon • Paint & Win Lucky Draw</title>
 
-    .counter li {
-      float: left;
-      background: url(img/filmstrip.png) 0 0 no-repeat;
-      width: 53px;
-      height: 79px;
-    }
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 
-    .counter li.seperator {
-      background: url(img/comma.png) 2px 75px no-repeat;
-      width: 12px
-    }
-	
-	button.start{
-		font-size:21px;
-		width:300px;
-		margin-top:30px;
-	}
-	.winners{
-		/*border-top:solid 3px #000;*/
-		display:block;
-		width:68%;
-		margin:auto;
-		font-size: 15px;
-		margin-top:10px;
-		min-height:250px;
-	}
-	.winners-brazil{
-		width:37%;
-		margin-left:2%;
-	}
-	.winners h2{
-		margin-bottom:5px;
-		margin-top:20px;
-		line-height:normal
-	}
-	.winners ul{
-		margin:0;
-		padding:10px;
-		background: #FFFFFF;
-		opacity:0.7;
-		
-	}
-	.winners ul li{
-		list-style:none;
-		display:inline;
-		margin-left: 1%;
-		margin:bottom:3px;
-		text-align:center;
-		font-size:26px;
-		color:#000000;
-		font-weight:bold;
-	}
-	#popup{
-		display:block;
-		width:0;
-		margin:auto;
-		/*border:solid 1px #9bcb52;*/
-		font-size:4em !important;
-		position:absolute;
-		top:110px;
-		margin-left:27%;
-		text-align:center;
-		color:#fff;
-		height:0px;
-		overflow:hidden;
-		left:580px;
-		top:90%;
-		/*background:#f7941e;*/
-		background:url('img/samba popup2.png') left no-repeat;
-		font-family: Arial;
-		font-weight:bold;
-	}
-	.popnumber{
-		font-size:100%;
-		color:#fff;
-	}
-	
-	
-	
-	#Blinker {display:block; height:40px;-moz-animation-iteration-count: infinite;-moz-animation-timing-function: linear;-moz-animation-duration:1s;-moz-animation-name: blink;-webkit-animation-iteration-count: infinite;-webkit-animation-timing-function: linear;-webkit-animation-duration:1s;-webkit-animation-name: blink;font-family:georgia, serif; color:#000; line-height:40px; }
+    <!-- Application Styles -->
+    <link rel="stylesheet" href="css/plascon-draw.css">
 
-@-moz-keyframes blink {
-0% {opacity:0;}
-100% {opacity:1;}
-}
-#Blinker:hover {
- -moz-animation-play-state: paused;
- }
-
-@-webkit-keyframes blink {
-0% {opacity:0;}
-100% {opacity:1;}
-}
-#Blinker:hover {
- -webkit-animation-play-state: paused;
-
- }
-    -->
-  </style>
-
+    <!-- Configuration bootstrap -->
+    <script>
+        window.PLASCON_INIT_REGION = <?= json_encode($selectedRegion) ?>;
+        window.PLASCON_INIT_TYPE = <?= json_encode($selectedType) ?>;
+        window.PLASCON_INIT_TARGET = <?= json_encode($targetCount) ?>;
+    </script>
 </head>
-<body cz-shortcut-listen="true">
-<center>
-<table>
-<tr><td class ="counter">
-<ul>
-  <!--<li id="d9" style="background-position: 0px -5562px;"></li>-->
-  <li></li>
-  <li id="d8" style="background-position: 0px 0px;"></li>
-  <li id="d7" style="background-position: 0px 0px;"></li>
-  <li id="d6" style="background-position: 0px 0px;"></li>
-  <li class="seperator"></li>
-  <li id="d5" style="background-position: 0px 0px;"></li>
-  <li id="d4" style="background-position: 0px 0px;"></li>
-  <li id="d3" style="background-position: 0px -2472px;"></li>
-  <li class="seperator"></li>
-  <li id="d2" style="background-position: 0px -4326px;"></li>
-  <li id="d1" style="background-position: 0px -4017px;"></li>
-  <li id="d0" style="background-position: 0px -2163px;"></li>
-</ul>
-</td>
-</tr>
-</table>
 
+<body>
+    <!-- Confetti Particle Layer -->
+    <canvas id="confetti-canvas"></canvas>
 
-</center>
-<div class="winners">
-	<!--<h2>100,000 winners</h2> -->
-	<ul class="winnerlist">
-	
-	</ul>
-</div>
-<!--<div class="winners winners-brazil">
-<h2>ticket winners</h2>
-</div>-->
-<div id="popup">
-	<span id="Blinker" style="text-decoration:blink;margin-top:20px; margin-bottom:10px; line-height:normal; font-size:43px;"><blink>Explora Winner....</blink></span>
-	<span class="popnumber"></div>
-</div>
+    <div class="app-container">
+        <!-- Top Broadcast Header -->
+        <header class="broadcast-header">
+            <div class="brand-section">
+                <div class="brand-logo-badge">
+                    <!-- Kansai Plascon SVG Icon -->
+                    <div class="brand-title-group">
+                        <h1>KANSAI PLASCON</h1>
+                        <div class="subtitle">Paint &amp; Win Promotional Draw</div>
+                    </div>
+                </div>
+                <div class="badge-tag">
+                    <span class="badge-live-pulse"></span>
+                    <span>LIVE SYSTEM</span>
+                </div>
+            </div>
 
-<script type="text/javascript">
-  //<![CDATA[
+            <div class="header-actions">
+                <button type="button" class="btn-icon" id="btn-toggle-sound" title="Toggle Sound (M)">
+                    <span>🔊 SOUND ON</span>
+                </button>
+                <button type="button" class="btn-icon" id="btn-toggle-privacy"
+                    title="Mask phone numbers for TV broadcast">
+                    <span>🔒 PRIVACY MASK</span>
+                </button>
+                <button type="button" class="btn-icon" id="btn-toggle-fullscreen" title="Fullscreen Broadcast Mode (F)">
+                    <span>⛶ FULLSCREEN</span>
+                </button>
+                <button type="button" class="btn-icon" id="btn-toggle-history" title="View Drawn Winners (H)">
+                    <span>📋 WINNERS LIST</span>
+                </button>
+            </div>
+        </header>
 
-  // Array to hold each digit's starting background-position Y value
-  var initialPos = [0, -618, -1236, -1854, -2472, -3090, -3708, -4326, -4944, -5562];
-  // Amination frames
-  var animationFrames = 5;
-  // Frame shift
-  var frameShift = 103;
+        <!-- Main Stage -->
+        <main class="main-stage">
+            <div class="campaign-banner">
+                <div class="campaign-tagline">COLOUR YOUR WORLD</div>
+                <h2 class="campaign-headline">OFFICIAL LUCKY DRAW</h2>
+                <div class="region-display-badge">
+                    <span>📍 REGION:</span>
+                    <span id="current-region-display"><?= htmlspecialchars(strtoupper($selectedRegion)) ?></span>
+                </div>
+            </div>
 
-  // Starting number
-  var theNumber = 799999999;
-  // Increment
-  var increment = -121111;
-  // Pace of counting in milliseconds
-  var pace = 480;
+            <!-- 3D Mechanical Odometer Stage -->
+            <div class="odometer-wrapper" id="odometer-wrapper">
+                <div class="odometer-label-row">
+                    <span>UGANDA MOBILE MSISDN</span>
+                    <span>AUTOMATED RANDOMIZER</span>
+                </div>
 
-  // Initializing variables
-  var digitsOld = [], digitsNew = [], subStart, subEnd, x, y;
+                <!-- Dynamic Reels Board -->
+                <div class="reels-board" id="reels-board">
+                    <!-- Reels populated dynamically by plascon-draw.js -->
+                </div>
+            </div>
 
-  
-  // Function that controls counting
-  var items = [<?php echo getNumbers(); ?>,256799999999];
+            <!-- Presenter Controls HUD -->
+            <div class="controls-hud">
+                <button type="button" class="btn-primary-draw" id="btn-main-action">
+                    <span>▶ START SPIN</span>
+                </button>
+                <button type="button" class="btn-icon" id="btn-next-winner"
+                    style="padding: 16px 24px; font-size: 1.05rem; border-radius: 40px;">
+                    <span>⚡ NEXT DRAW</span>
+                </button>
+            </div>
 
-var winners = [<?php echo getWinners();?>];
-var refreshIntervalId;
- var mycount = 0;
-  function doCount(){
-   // var x = theNumber.toString();
-   // theNumber += increment;
-    //var y = theNumber.toString();
-	var x = items[mycount].toString();
-	if( mycount < items.length){
-	    mycount++;
-		var y = items[mycount].toString();
-	}
-	 currentWinner = winners.indexOf(y);
-	 //check if the current number is in the list
-	if(currentWinner != -1)
-	{  
-		  clearInterval(refreshIntervalId);
-		  //remove the current winner from the list
-		  winners.splice(currentWinner, 1);
-		  //wait for 10secs
-		 setTimeout(function(){
-			animateAndDisplay(y)
-		 },1700);
-		 //check if the system expects more winners
-			if(winners.length > 0){
-				//restart the loop through all the numbers to find the next winner
-				setTimeout(start,6000);
-		  }else{
-			
-		  }
-	}
-	
-	digitCheck(x, y);
-    
-  }
-function phoneFormat(phone)
-{
-	var str = phone;
-	var res = str.replace("256","0");
-	return res;
-}
-  function animateAndDisplay(y)
-  {
-  
-		//remove the first digits and replace with a zero
-		
-		$('.winnerlist').append('<li> ' + phoneFormat(y) + ', </li>');
-		$('.popnumber').html(phoneFormat(y) );
-		$("#popup").hide();
-		 $("#popup").animate({height:"210px",top:"150px",left:"10px", width:"48%"});
-  }
-  // This checks the old count value vs. new value, to determine how many digits
-  // have changed and need to be animated.
-  function digitCheck(x, y){
-    var digitsOld = splitToArray(x),
-      digitsNew = splitToArray(y);
-    for (var i = 0, c = digitsNew.length; i < c; i++){
-      if (digitsNew[i] != digitsOld[i]){
-        animateDigit(i, digitsOld[i], digitsNew[i]);
-      }
-    }
-  }
+            <!-- Options & Filter Bar -->
+            <div class="options-bar" style="margin-top: 20px;">
+                <div class="select-control-group">
+                    <label for="select-region">Region:</label>
+                    <select id="select-region" class="select-control">
+                        <option value="All Regions" <?= $selectedRegion === 'All Regions' ? 'selected' : '' ?>>All Regions
+                            (National)</option>
+                        <?php foreach ($regions as $r): ?>
+                            <option value="<?= htmlspecialchars($r) ?>" <?= strcasecmp($selectedRegion, $r) === 0 ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($r) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
 
-  // Animation function
-  function animateDigit(n, oldDigit, newDigit){
-    // I want three different animations speeds based on the digit,
-    // because the pace and increment is so high. If it was counting
-    // slower, just one speed would do.
-    // 1: Changes so fast is just like a blur
-    // 2: You can see complete animation, barely
-    // 3: Nice and slow
-    var speed;
-    switch (n){
-      case 0:
-        speed = pace / 8;
-        break;
-      case 1:
-        speed = pace / 4;
-        break;
-      default:
-        speed = pace / 2;
-        break;
-    }
-    // Cap on slowest animation can go
-    speed = (speed > 100) ? 100 : speed;
-    // Get the initial Y value of background position to begin animation
-    var pos = initialPos[oldDigit];
-    // Each animation is 5 frames long, and 103px down the background image.
-    // We delay each frame according to the speed we determined above.
-    for (var k = 0; k < animationFrames; k++){
-      pos = pos-frameShift;
-      if (k == (animationFrames-1)){
-        $("#d"+n).delay(speed).animate({'background-position': '0 '+pos+'px'}, 0, function(){
-          // At end of animation, shift position to new digit.
-          $("#d"+n).css({'background-position': '0 '+initialPos[newDigit]+'px'}, 0);
-        });
-      }
-      else{
-        $("#d"+n).delay(speed).animate({'background-position': '0 '+pos+'px'}, 0);
-      }
-    }
-	
-	
-  }
+                <div class="select-control-group">
+                    <label for="select-draw-type">Draw Category:</label>
+                    <select id="select-draw-type" class="select-control">
+                        <option value="daily" <?= $selectedType === 'daily' ? 'selected' : '' ?>>Daily Draw</option>
+                        <option value="weekly" <?= $selectedType === 'weekly' ? 'selected' : '' ?>>Weekly Draw</option>
+                        <option value="regional" <?= $selectedType === 'regional' ? 'selected' : '' ?>>Regional Draw
+                        </option>
+                        <option value="grand" <?= $selectedType === 'grand' ? 'selected' : '' ?>>Grand Draw</option>
+                    </select>
+                </div>
 
-  // Splits each value into an array of digits
-  function splitToArray(input){
-    var digits = new Array();
-    for (var i = 0, c = input.length; i < c; i++){
-      subStart = input.length-(i+1);
-      subEnd = input.length-i;
-      digits[i] = input.substring(subStart, subEnd);
-    }
-    return digits;
-  }
+                <div class="select-control-group">
+                    <label for="select-target-count">Winners Target:</label>
+                    <select id="select-target-count" class="select-control">
+                        <option value="1" <?= $targetCount === 1 ? 'selected' : '' ?>>1 Winner</option>
+                        <option value="2" <?= $targetCount === 2 ? 'selected' : '' ?>>2 Winners</option>
+                        <option value="5" <?= $targetCount === 5 ? 'selected' : '' ?>>5 Winners</option>
+                        <option value="8" <?= $targetCount === 8 ? 'selected' : '' ?>>8 Winners</option>
+                        <option value="10" <?= $targetCount === 10 ? 'selected' : '' ?>>10 Winners</option>
+                    </select>
+                </div>
+            </div>
 
-  // Sets the correct digits on load
-  function initialDigitCheck(initial){
-    var digits = splitToArray(initial.toString());
-    for (var i = 0, c = digits.length; i < c; i++){
-      $("#d"+i).css({'background-position': '0 '+initialPos[digits[i]]+'px'});
-    }
-  }
+            <!-- Keyboard Shortcuts Hint Bar -->
+            <div class="hotkey-bar">
+                <span class="hotkey-item"><kbd>Space</kbd> / <kbd>Enter</kbd> Start &amp; Stop</span>
+                <span class="hotkey-item"><kbd>N</kbd> Next Draw</span>
+                <span class="hotkey-item"><kbd>F</kbd> TV Broadcast Fullscreen</span>
+                <span class="hotkey-item"><kbd>M</kbd> Mute Audio</span>
+                <span class="hotkey-item"><kbd>Esc</kbd> Close Overlay</span>
+            </div>
+        </main>
+    </div>
 
-  // Start it up
-  
-  	initialDigitCheck(theNumber);
- function sleep(milliseconds) {
-  var start = new Date().getTime();
-  for (var i = 0; i < 1e7; i++) {
-    if ((new Date().getTime() - start) > milliseconds){
-      break;
-    }
-  }
-}
-  function start(){
-	clearInterval(refreshIntervalId);
-	//initialDigitCheck(theNumber);
-	//mycount = 0;
-	refreshIntervalId = setInterval(doCount, pace);
-	
-	$("#popup").animate({height:"0px", top:"90%",left:"25%", width:"0.1%"});
-	$("#popup").hide();
-  }
-  $('body').live('keypress',function(e){
-     var p = e.which;
-     if(p==13){
-        start();
-     }
-	 else if(p == 88){
-		$("#popup").animate({height:"1px", top:"95%",left:"45%", width:"1%"});
-	 }
- });
-  $('body').click(function(){
-		$("#popup").animate({height:"1px", top:"95%",left:"45%", width:"1%"});
-  })
+    <!-- Winner Celebration Modal -->
+    <div class="winner-modal-overlay" id="winner-modal">
+        <div class="winner-card">
+            <div class="winner-trophy-icon">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#FFC20E" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                    <path d="M4 22h16"></path>
+                    <path d="M10 14.66V17c0 .55-.45 1-1 1H8v4h8v-4h-1c-.55 0-1-.45-1-1v-2.34"></path>
+                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+                </svg>
+            </div>
+            <div class="winner-card-title">CONGRATULATIONS! WINNER DRAWN</div>
+            <div class="winner-phone-number" id="modal-winner-phone">0772 ••• 413</div>
 
-  //]]>
-</script>
+            <div class="winner-meta-row">
+                <span class="winner-meta-badge">📍 <span id="modal-winner-region">Kampala</span></span>
+                <span class="winner-meta-badge">🎁 <span id="modal-winner-prize">Paint &amp; Win Prize</span></span>
+            </div>
+
+            <div class="winner-actions">
+                <button type="button" class="btn-secondary" id="btn-modal-close">Close</button>
+                <button type="button" class="btn-primary-draw" id="btn-modal-next"
+                    style="padding: 12px 32px; font-size: 1.1rem;">
+                    <span>Next Winner ▶</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Past Winners History Slide-out Drawer -->
+    <aside class="history-drawer" id="history-drawer">
+        <div class="drawer-header">
+            <h3>Drawn Winners</h3>
+            <button type="button" class="drawer-close-btn" id="btn-close-drawer">&times;</button>
+        </div>
+        <div class="drawer-body">
+            <ul class="winner-list-items" id="winner-list-items">
+                <!-- Populated dynamically via API -->
+            </ul>
+        </div>
+        <div class="drawer-footer">
+            <button type="button" class="btn-export" id="btn-export-csv">
+                <span>📥 Export to CSV (Excel)</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Core Broadcast Script -->
+    <script src="js/plascon-draw.js"></script>
 </body>
-</html>
 
+</html>
