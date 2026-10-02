@@ -15,10 +15,60 @@ class Config
 
     public function __construct()
     {
+        self::loadEnv();
         $this->host = getenv('DB_HOST') ?: '127.0.0.1';
         $this->user = getenv('DB_USER') ?: 'root';
         $this->password = getenv('DB_PASS') !== false ? getenv('DB_PASS') : '';
         $this->database = getenv('DB_NAME') ?: 'plascon';
+    }
+
+    /**
+     * Automatically load .env file if it exists
+     */
+    public static function loadEnv(): void
+    {
+        static $loaded = false;
+        if ($loaded) {
+            return;
+        }
+        $loaded = true;
+
+        $envFile = __DIR__ . '/.env';
+        if (!file_exists($envFile) || !is_readable($envFile)) {
+            return;
+        }
+
+        $lines = @file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            return;
+        }
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || strpos($line, '#') === 0) {
+                continue;
+            }
+
+            if (strpos($line, '=') !== false) {
+                list($name, $value) = explode('=', $line, 2);
+                $name = trim($name);
+                $value = trim($value);
+
+                // Strip surrounding quotes
+                if (
+                    (strpos($value, '"') === 0 && strrpos($value, '"') === strlen($value) - 1) ||
+                    (strpos($value, "'") === 0 && strrpos($value, "'") === strlen($value) - 1)
+                ) {
+                    $value = substr($value, 1, -1);
+                }
+
+                if (getenv($name) === false) {
+                    putenv("{$name}={$value}");
+                    $_ENV[$name] = $value;
+                    $_SERVER[$name] = $value;
+                }
+            }
+        }
     }
 
     /**
@@ -32,7 +82,8 @@ class Config
                 // Suppress default fatal exception behavior to handle errors gracefully
                 mysqli_report(MYSQLI_REPORT_OFF);
 
-                $conn = @new mysqli($this->host, $this->user, $this->password, $this->database);
+                $port = (int) (getenv('DB_PORT') ?: 3306);
+                $conn = @new mysqli($this->host, $this->user, $this->password, $this->database, $port);
 
                 if ($conn->connect_error) {
                     error_log("Plascon Draw DB Connection Failed: " . $conn->connect_error);
