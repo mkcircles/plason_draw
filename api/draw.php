@@ -27,6 +27,7 @@ try {
     $prize = !empty($data['prize']) ? trim($data['prize']) : 'Paint and Win Prize';
     $msisdn = !empty($data['msisdn']) ? preg_replace('/[^0-9]/', '', $data['msisdn']) : null;
     $fileUsed = !empty($data['file_used']) ? trim($data['file_used']) : 'live_draw_ui';
+    $explicitMode = !empty($data['explicit_mode']);
 
     // If msisdn was not passed, pick an eligible random winner from codes (area vs full draw)
     if (empty($msisdn)) {
@@ -40,25 +41,28 @@ try {
         }
     }
 
-    // Verify not in excluded list
-    $excluded = array_flip($config->getExclude());
-    if (isset($excluded[$msisdn])) {
-        echo json_encode([
-            'status' => 'error',
-            'message' => 'Number ' . Config::formatPhone($msisdn) . ' has already won or is excluded.'
-        ]);
-        exit;
+    // Verify not in excluded list (skip strict DB exclusion block if in explicit mode and DB is offline)
+    if (!$explicitMode) {
+        $excluded = array_flip($config->getExclude());
+        if (isset($excluded[$msisdn])) {
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Number ' . Config::formatPhone($msisdn) . ' has already won or is excluded.'
+            ]);
+            exit;
+        }
     }
 
-    // Record winner atomically
+    // Record winner atomically (if explicitMode and DB is unavailable, continue gracefully)
     $saved = $config->recordDrawnWinner($msisdn, $drawType, $region, $prize, $fileUsed);
 
-    if (!$saved) {
+    if (!$saved && !$explicitMode) {
         throw new Exception('Database error while recording winner.');
     }
 
     echo json_encode([
         'status' => 'success',
+        'saved_to_db' => (bool) $saved,
         'winner' => [
             'msisdn' => $msisdn,
             'formatted' => Config::formatPhone($msisdn, false),

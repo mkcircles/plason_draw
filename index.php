@@ -13,7 +13,21 @@ $selectedRegion = isset($_GET['region']) ? trim($_GET['region']) : 'All Regions'
 $selectedType = isset($_GET['type']) ? trim($_GET['type']) : 'daily';
 $targetCount = isset($_GET['count']) ? max(1, (int) $_GET['count']) : 8;
 
-$regions = Config::getAvailableRegions();
+// Support explicit phone numbers mode (e.g. Tukutuku draw)
+$isExplicitMode = !empty($explicitDrawMode) || $selectedType === 'tukutuku';
+$explicitPool = [];
+if ($isExplicitMode) {
+    if (isset($tukutukuNumbers) && !empty($tukutukuNumbers)) {
+        $explicitPool = Config::parseExplicitNumbers($tukutukuNumbers);
+    } else {
+        $explicitPool = $config->getTukutukuNumbers();
+    }
+}
+$customHeadline = isset($drawHeadline) ? $drawHeadline : ($selectedType === 'tukutuku' ? 'TUKUTUKU WINNERS DRAW' : 'OFFICIAL LUCKY DRAW');
+$defaultPrize = isset($drawPrize) ? $drawPrize : ($selectedType === 'tukutuku' ? 'Tukutuku Prize' : 'Paint & Win Prize');
+$fileUsed = isset($drawFileUsed) ? $drawFileUsed : ($selectedType === 'tukutuku' ? 'tukutuku.php' : 'live_draw_ui');
+
+$regions = $isExplicitMode ? Config::getDefaultRegions() : Config::getAvailableRegions();
 if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, true)) {
     $regions[] = $selectedRegion;
     sort($regions);
@@ -25,7 +39,7 @@ if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, tr
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kansai Plascon • Paint & Win Lucky Draw</title>
+    <title>Kansai Plascon • <?= htmlspecialchars($selectedType === 'tukutuku' ? 'Tukutuku Winners Draw' : 'Paint & Win Lucky Draw') ?></title>
 
     <!-- Modern Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -40,6 +54,10 @@ if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, tr
         window.PLASCON_INIT_REGION = <?= json_encode($selectedRegion) ?>;
         window.PLASCON_INIT_TYPE = <?= json_encode($selectedType) ?>;
         window.PLASCON_INIT_TARGET = <?= json_encode($targetCount) ?>;
+        window.PLASCON_EXPLICIT_MODE = <?= json_encode((bool) $isExplicitMode) ?>;
+        window.PLASCON_EXPLICIT_NUMBERS = <?= json_encode(array_values($explicitPool)) ?>;
+        window.PLASCON_DEFAULT_PRIZE = <?= json_encode($defaultPrize) ?>;
+        window.PLASCON_FILE_USED = <?= json_encode($fileUsed) ?>;
     </script>
 </head>
 
@@ -65,6 +83,9 @@ if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, tr
             </div>
 
             <div class="header-actions">
+                <button type="button" class="btn-icon <?= $isExplicitMode ? 'active' : '' ?>" id="btn-manage-numbers" title="Provide or edit explicit phone numbers to draw from (P)">
+                    <span>📝 NUMBERS (<span id="pool-count-header"><?= count($explicitPool) ?></span>)</span>
+                </button>
                 <button type="button" class="btn-icon" id="btn-toggle-sound" title="Toggle Sound (M)">
                     <span>🔊 SOUND ON</span>
                 </button>
@@ -85,10 +106,16 @@ if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, tr
         <main class="main-stage">
             <div class="campaign-banner">
                 <div class="campaign-tagline">COLOUR YOUR WORLD</div>
-                <h2 class="campaign-headline">OFFICIAL LUCKY DRAW</h2>
-                <div class="region-display-badge">
-                    <span>📍 REGION:</span>
-                    <span id="current-region-display"><?= htmlspecialchars(strtoupper($selectedRegion)) ?></span>
+                <h2 class="campaign-headline" id="campaign-headline"><?= htmlspecialchars($customHeadline) ?></h2>
+                <div class="banner-badges-row">
+                    <div class="region-display-badge">
+                        <span>📍 REGION:</span>
+                        <span id="current-region-display"><?= htmlspecialchars(strtoupper($selectedRegion)) ?></span>
+                    </div>
+                    <div class="pool-display-badge" id="pool-status-badge" <?= !$isExplicitMode ? 'style="display:none;"' : '' ?>>
+                        <span>🏍️ EXPLICIT POOL:</span>
+                        <span id="current-pool-count"><?= count($explicitPool) ?> NUMBERS</span>
+                    </div>
                 </div>
             </div>
 
@@ -134,6 +161,7 @@ if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, tr
                 <div class="select-control-group">
                     <label for="select-draw-type">Draw Category:</label>
                     <select id="select-draw-type" class="select-control">
+                        <option value="tukutuku" <?= $selectedType === 'tukutuku' ? 'selected' : '' ?>>Tukutuku Draw</option>
                         <option value="daily" <?= $selectedType === 'daily' ? 'selected' : '' ?>>Daily Draw</option>
                         <option value="weekly" <?= $selectedType === 'weekly' ? 'selected' : '' ?>>Weekly Draw</option>
                         <option value="regional" <?= $selectedType === 'regional' ? 'selected' : '' ?>>Regional Draw
@@ -213,6 +241,57 @@ if ($selectedRegion !== 'All Regions' && !in_array($selectedRegion, $regions, tr
             </button>
         </div>
     </aside>
+
+    <!-- Explicit Phone Numbers Input Modal (Native Dialog) -->
+    <dialog class="numbers-dialog" id="numbers-dialog" closedby="any">
+        <form method="dialog" class="numbers-dialog-form" id="numbers-dialog-form">
+            <div class="numbers-dialog-header">
+                <div>
+                    <h2 class="numbers-dialog-title">Explicit Draw Numbers Pool</h2>
+                    <p class="numbers-dialog-subtitle" id="numbers-input-help">
+                        Paste phone numbers below (comma, space, or line-separated) or upload a CSV/TXT file. Winners will be drawn strictly from these provided numbers instead of the database.
+                    </p>
+                </div>
+                <button type="submit" value="cancel" class="drawer-close-btn" aria-label="Close dialog">&times;</button>
+            </div>
+
+            <div class="numbers-dialog-body">
+                <div class="numbers-toolbar">
+                    <label for="explicit-numbers-input" class="numbers-field-label">
+                        Phone Numbers to Draw From (<span id="dialog-parsed-count"><?= count($explicitPool) ?></span> valid numbers):
+                    </label>
+                    <div class="numbers-toolbar-actions">
+                        <label for="numbers-file-upload" class="btn-icon btn-file-label">
+                            <span>📂 Load .CSV / .TXT</span>
+                        </label>
+                        <input type="file" id="numbers-file-upload" accept=".txt,.csv" class="visually-hidden">
+                        <button type="button" class="btn-icon" id="btn-clear-numbers">
+                            <span>🗑️ Clear</span>
+                        </button>
+                    </div>
+                </div>
+
+                <textarea
+                    id="explicit-numbers-input"
+                    name="explicit_numbers"
+                    class="numbers-textarea"
+                    rows="10"
+                    aria-describedby="numbers-input-help"
+                    autocorrect="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    placeholder="256772123456&#10;0782356234&#10;256701005383"
+                ><?= htmlspecialchars(implode("\n", $explicitPool)) ?></textarea>
+            </div>
+
+            <div class="numbers-dialog-footer">
+                <button type="submit" value="cancel" class="btn-secondary">Cancel</button>
+                <button type="submit" value="apply" class="btn-primary-draw" id="btn-apply-numbers" style="padding: 12px 28px; font-size: 1rem;">
+                    <span>✓ Load Numbers into Draw</span>
+                </button>
+            </div>
+        </form>
+    </dialog>
 
     <!-- Core Broadcast Script -->
     <script src="js/plascon-draw.js"></script>

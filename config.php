@@ -538,6 +538,60 @@ class Config
     }
 
     /**
+     * Parse and normalize an explicit list of phone numbers (array or delimited string)
+     * @param array|string $input
+     * @return array
+     */
+    public static function parseExplicitNumbers($input): array
+    {
+        if (is_string($input)) {
+            $rawItems = preg_split('/[\s,;|\r\n]+/', $input, -1, PREG_SPLIT_NO_EMPTY);
+        } elseif (is_array($input)) {
+            $rawItems = [];
+            foreach ($input as $item) {
+                if (is_string($item) || is_numeric($item)) {
+                    $split = preg_split('/[\s,;|\r\n]+/', (string) $item, -1, PREG_SPLIT_NO_EMPTY);
+                    foreach ($split as $s) {
+                        $rawItems[] = $s;
+                    }
+                }
+            }
+        } else {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($rawItems as $raw) {
+            $digits = preg_replace('/[^0-9]/', '', (string) $raw);
+            if ($digits === '') {
+                continue;
+            }
+            // Normalize 9-digit Uganda numbers (e.g. 772123456 -> 256772123456)
+            if (strlen($digits) === 9 && $digits[0] === '7') {
+                $digits = '256' . $digits;
+            } elseif (strlen($digits) === 10 && $digits[0] === '0') {
+                $digits = '256' . substr($digits, 1);
+            }
+            if (strlen($digits) >= 9) {
+                $normalized[$digits] = true;
+            }
+        }
+
+        return array_map('strval', array_keys($normalized));
+    }
+
+    /**
+     * Explicit phone numbers for the Tukutuku draw
+     * You can edit this list directly or provide them in tukutuku.php
+     * @return array
+     */
+    public function getTukutukuNumbers(): array
+    {
+        $numbers = explode(',', $this->getTestNumbers());
+        return self::parseExplicitNumbers($numbers);
+    }
+
+    /**
      * Curated test phone numbers
      */
     public function getTestNumbers(): string
